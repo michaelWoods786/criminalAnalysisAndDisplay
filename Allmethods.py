@@ -4,13 +4,6 @@ import folium
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.metrics import r2_score
-from statsmodels.nonparametric.smoothers_lowess import lowess
-
-# Exponential decay function: y = a * exp(-b * x)
-def exp_decay(x, a, b):
-
-   return a * np.exp(-b * x)
-
 
 
 def analyze(conn):
@@ -22,69 +15,18 @@ def analyze(conn):
 
     z = []
     for result in results:
-        
-
         if result[1] != None and result[0] != None:
-            x.append(float(result[0]))
+            x.append(result[0]/100000)
             y.append(result[1])
-    
-        print(x[0]) 
-    
-   
-    x = np.array(x)
-    y = np.array(y)
-
-# Sort by x
-    idx = np.argsort(x)
-    x_sorted = x[idx]
-    y_sorted = y[idx]
-    print(max(x))
-
-    print(y_sorted[0])
-    z = exp_decay(x_sorted, a= x_sorted[0], b =10)
-    print("THIS IS z:")
-    print(z)
-
-    print("R^2:", r2_score(y_sorted,z))
+            z.append(1/  (result[0]/100000))  
+         
+    np.array([1,2,3])
+ 
+    print("R^2:", r2_score(np.array(y),np.array( z)))
 
 
 #FINDINGS: INVERSE COORELATION FACTOR OF -0.57
 
-def getPriceNumCriminals(conn):
-    cursor = conn.cursor()
-    cursor.execute("SELECT list_price, numCriminal FROM CAFINALTABLE")
-    x = []
-    y=  []
-    
-
-    results = cursor.fetchall()
-    plt.xlabel("PRICE(in 100000)")
-    plt.ylabel("NumCriminals")
-    for price, numCriminal in results:
-       
-        if price and numCriminal:
-            x.append(price/100000)
-            y.append(numCriminal)
-    
-    
-    x = (np.array(x))
-    y = np.array(y)
-    mask = (x < 30) & (y < 2000)
-    x1= x[ mask]
-    y1 = y[mask]
-    return (x1,y1)
-     
-    
-
-def getHistogram(conn):
-
-    cursor = conn.cursor()
-    x,y =  getPriceNumCriminals(conn)
-    plt.hexbin(x, y, gridsize=40, cmap='viridis')
-    plt.colorbar(label='count')
-    plt.savefig("Histogram.png")
-
- 
 
 def relatePriceofHouseToCrim(conn):
     print("IN RELATE")
@@ -94,22 +36,26 @@ def relatePriceofHouseToCrim(conn):
     
     results = cursor.fetchall()
     plt.xlabel("PRICE(in 100000)")
-    plt.ylabel("Number of Criminals")
-    x,y =  getPriceNumCriminals(conn)
-
+    plt.ylabel("NumCriminals")
+    for price, numCriminal in results:
+        
+        print("THSI SI THE PRICE")
+        print(price)
+        print("THIS IS NUM CRIMINALS")
+        print(numCriminal)
     
+        plt.scatter(price/100000,numCriminal)
+            
     
-    x_log = x     
 
-    y1 = y
-    smooth = lowess(y1, x_log, frac=0.25)
-    print("PERCENT")
-    print(np.percentile(x_log, [0, 25, 50, 75, 90, 95, 99]))
 
-    plt.scatter(x_log, y1, s=4, alpha=0.15)
-    plt.plot(smooth[:,0], smooth[:,1], color='red', linewidth=2)
-    plt.xlabel('log(PRICE)')
-    plt.ylabel('NumCriminals')
+    plt.title("Price vs numberofCriminals")
+    plt.savefig("scatter_plot.png")
+    
+    plt.xlim(0, 20)
+    plt.savefig("zoomedIn.png")
+
+
 
 
 def getTableNames(conn):
@@ -204,5 +150,3 @@ if __name__ == "__main__":
     print("BEFORE METHOD")
    # relatePriceofHouseToCrim(conn)
     analyze(conn)
-    getHistogram(conn)
-    relatePriceofHouseToCrim(conn)
