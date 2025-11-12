@@ -3,9 +3,10 @@ import pandas as pd
 import folium
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.stats import gaussian_kde
 from sklearn.metrics import r2_score
 from statsmodels.nonparametric.smoothers_lowess import lowess
-
+from scipy.optimize import curve_fit
 # Exponential decay function: y = a * exp(-b * x)
 def exp_decay(x, a, b):
 
@@ -14,52 +15,32 @@ def exp_decay(x, a, b):
 
 
 def analyze(conn):
-    cursor = conn.cursor()
-    cursor.execute("SELECT list_price, numCriminal FROM CAFINALTABLE")
-    results = cursor.fetchall()
-    x = []
-    y = [] 
 
-    z = []
-    for result in results:
-        
+    densities = [1,25,50,75,100]
+    for dens in densities:
+        x,y = getCoordinatesDensity(dens, 0, 10, 0, 1250)
+        idx = np.argsort(x)
+        x_sorted = x[idx]
+        y_sorted = y[idx]
 
-        if result[1] != None and result[0] != None:
-            x.append(float(result[0]))
-            y.append(result[1])
-    
-        print(x[0]) 
-    
-   
-    x = np.array(x)
-    y = np.array(y)
-
-# Sort by x
-    idx = np.argsort(x)
-    x_sorted = x[idx]
-    y_sorted = y[idx]
-    print(max(x))
-
-    print(y_sorted[0])
-    z = exp_decay(x_sorted, a= x_sorted[0], b =10)
-    print("THIS IS z:")
-    print(z)
-
-    print("R^2:", r2_score(y_sorted,z))
+        params, _ = curve_fit(exp_decay, x_sorted, y_sorted, p0=(1, 0.01))
+        a, b = params
+        z = exp_decay(x_sorted, a, b)
+        print("R^2:", r2_score(y_sorted,z))
 
 
 #FINDINGS: INVERSE COORELATION FACTOR OF -0.57
 
-def getPriceNumCriminals(conn):
+def getPriceNumCriminals(conn, lowerX, upperX, lowerY, upperY):
+    print("IN GET PRICE")
+
     cursor = conn.cursor()
     cursor.execute("SELECT list_price, numCriminal FROM CAFINALTABLE")
     x = []
     y=  []
-    
+ 
 
     results = cursor.fetchall()
-    plt.xlabel("PRICE(in 100000)")
-    plt.ylabel("NumCriminals")
     for price, numCriminal in results:
        
         if price and numCriminal:
@@ -69,25 +50,51 @@ def getPriceNumCriminals(conn):
     
     x = (np.array(x))
     y = np.array(y)
-    mask = (x < 30) & (y < 2000)
-    x1= x[ mask]
-    y1 = y[mask]
+    #mask = (x < upperX) & (y < upperY) & (x > 1)
+    x1= x
+    y1 = y
+    
+
+    print("MINS")
+    print(min(x1))
+    print(min(y1))
+
+
     return (x1,y1)
      
-    
+
+
+
+
 
 def getHistogram(conn):
 
     cursor = conn.cursor()
-    x,y =  getPriceNumCriminals(conn)
+    x,y =  getPriceNumCriminals(conn,lowerX,upperX, lowerY, upperY)
     plt.hexbin(x, y, gridsize=40, cmap='viridis')
     plt.colorbar(label='count')
     plt.savefig("Histogram.png")
 
  
 
-def relatePriceofHouseToCrim(conn):
-    print("IN RELATE")
+
+
+def getCoordinatesDensity(dens,lowerX, upperX, lowerY, upperY):
+    plt.figure() 
+    x,y =  getPriceNumCriminals(conn,lowerX,upperX, lowerY, upperY)
+   
+    xy = np.vstack([x, y])
+    z = gaussian_kde(xy, bw_method=  0.1)(xy)
+    
+    percentiles = [1,25, 50, 75, 99]
+
+    mask = z < np.percentile(z, dens)
+    plt.scatter(x[mask], y[mask], c=z[mask], s=2)
+    plt.savefig("DENSITY.png")
+
+    return (x[mask], y[mask])
+def relatePriceofHouseToCrim(conn,lowerX, upperX, lowerY, upperY):
+    print("IN RELATE *+")
     
     cursor = conn.cursor()
     cursor.execute("SELECT list_price, numCriminal FROM CAFINALTABLE")
@@ -95,23 +102,39 @@ def relatePriceofHouseToCrim(conn):
     results = cursor.fetchall()
     plt.xlabel("PRICE(in 100000)")
     plt.ylabel("Number of Criminals")
-    x,y =  getPriceNumCriminals(conn)
-
     
-    
-    x_log = x     
 
-    y1 = y
-    smooth = lowess(y1, x_log, frac=0.25)
+    print("THIS IS LOWERSX")
+    print(lowerX)
+    print(upperX)
+    print(lowerY)
+    print(upperY)
+
+
+
+    x,y =  getPriceNumCriminals(conn,lowerX, upperX, lowerY, upperY)
+    print(x.size) 
+    x = x[int(x.size/2): x.size]
+    y = y[int(y.size/2): y.size]
+    print(max(x))
+    print(max(y))
+
+
+    print("THIS IS X:" + str(x))
+    print("THSI SIS Y:" + str(y))
+    
+    smooth = lowess(y, x, frac=0.25)
     print("PERCENT")
-    print(np.percentile(x_log, [0, 25, 50, 75, 90, 95, 99]))
-
-    plt.scatter(x_log, y1, s=4, alpha=0.15)
-    plt.plot(smooth[:,0], smooth[:,1], color='red', linewidth=2)
-    plt.xlabel('log(PRICE)')
-    plt.ylabel('NumCriminals')
+    percents = (np.percentile(x, [0, 25, 50, 75, 90, 95, 99]))
 
 
+
+
+    plt.scatter(x, y)
+    #plt.plot(smooth[:,0], smooth[:,1], color='red', linewidth=2)
+    plt.savefig("Scattered.png")
+
+ 
 def getTableNames(conn):
     
     print("HERE I AM CONNECTING")
@@ -203,6 +226,11 @@ if __name__ == "__main__":
    # mapCriminal(conn)
     print("BEFORE METHOD")
    # relatePriceofHouseToCrim(conn)
-    analyze(conn)
-    getHistogram(conn)
-    relatePriceofHouseToCrim(conn)
+    #analyze(conn)
+    #getHistogram(conn)
+    relatePriceofHouseToCrim(conn, 0, 10, 0, 1250)
+    getCoordinatesDensity(75,3.5, 5, 0, 1250)
+    
+    print("THIS IS THE FINAL ANALYSIS")
+
+    analyze(conn) 
