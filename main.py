@@ -1,3 +1,0 @@
-from scraper connectTable
-
-
