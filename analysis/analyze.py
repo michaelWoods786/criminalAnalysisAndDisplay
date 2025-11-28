@@ -33,6 +33,29 @@ def getGeoCluster(conn):
 #compare the average price  of the houes in cluster 1,  to the average price of
 #the houses in cluster 3
 
+def recordStats(filename, model):
+
+    pvals = model.pvalues
+    print("THIS SI THE FILENAME WE ARE WORKING WITH" + str(filename))  
+    
+    print("*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*")
+
+    with open(filename, "w") as file:
+        for param in pvals.index:
+            if "log_price" in param or "log_density" in param:
+                file.write(str(param)  + ":" +  str(pvals[param]))
+
+       
+        summary_str = str(model.summary())
+        
+        print("THIS IS THE FILE SUMMARAY I AM LOOKING FOR" + str(summary_str))
+
+        for line in summary_str.split('\n'):
+            print("THSI SI THE LINE:" + str(line))
+            file.write(line + "\n")
+    print("/^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^/")
+    file.close()
+
 
 
 
@@ -64,8 +87,11 @@ def normalizeNumCrim():
     "crimePerDensity ~ np.log(sold_price) * np.log( Density) + C(city) +  C(geo_cluster)",
     data=df
     ).fit()
-    print(model.params)
-    print(model.rsquared_adj)
+    
+
+    recordStats("crimePerDensity.txt", model)
+
+   
     df.to_sql(
     name="CATABLECluster",
     con=conn,
@@ -73,35 +99,24 @@ def normalizeNumCrim():
     index=False            # don’t write DataFrame index as a column
     )
 
-    result=  cursor.execute("SELECT  * FROM CATABLECluster WHERE\
-                            geo_cluster == 1")
-     
-    
     df["log_price"] = np.log(df["sold_price"])
     df["log_density"] = np.log1p(df["Density"])
     df["log_crime"] = np.log1p(df["crimePerDensity"])
-    print("HERE I AM &&&&&&&&&&&")
+    
+
+
+    #here, we are recording crime as a function fo the log of the price and 
+    #the log of the density. Additionally, we set C(city) and C(geo_cluster) as 
+    #categorical variables in which the crime is dependent on 
+
     model = smf.ols(
     "log_crime ~ log_price + log_density + C(city) + C(geo_cluster)",
     data=df
     ).fit()
     
-    with open("finalSummary.txt") as f:
-        f.write(model.summary())
-        f.write(model.params)
-        f.write(model.rsquared_adj)
+    recordStats("crimeAsFunction.txt", model)        
 
 
-    f.close()
-    
-    
-
-
-
-    pvals = model.pvalues
-    for param in pvals.index:
-        if "log_price" in param or "log_density" in param:
-            print(param, ":", pvals[param])
 
 
 
