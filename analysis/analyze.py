@@ -84,7 +84,7 @@ def normalizeNumCrim():
 
 
     model = smf.ols(
-    "crimePerDensity ~ np.log(sold_price) * np.log( Density) + C(city) +  C(geo_cluster)",
+    "crimePerDensity ~ np.log(sold_price) * np.log( Density) +  C(geo_cluster)",
     data=df
     ).fit()
     
@@ -110,14 +110,45 @@ def normalizeNumCrim():
     #categorical variables in which the crime is dependent on 
 
     model = smf.ols(
-    "log_crime ~ log_price + log_density + C(city) + C(geo_cluster)",
+    "log_crime ~ log_price + log_density + C(geo_cluster)",
     data=df
     ).fit()
     
     recordStats("crimeAsFunction.txt", model)        
 
+    model = smf.ols(
+    "numCriminal ~ (sold_price) + ( Density) + educationLevel +  C(geo_cluster)",
+    data=df
+    ).fit()
+
+    print("THESE ARE THE PVALS")
+    print(model.pvalues)
+
+    print("^^^^^^^^^^^^^^^^")
+    print(str(model.summary()))
+    
+    model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  + C(geo_cluster)", data=df).fit()
+
+    print("THESE ARE THE PVALS2222222222222222----")
+    print(model.pvalues)
+
+    print("^^^^^^^^^^^^^^^^")
+    print(str(model.summary()))
+    
+    
+    print("THIS IS FOR RELATING PRICE TO BAATHS AND SUC")
 
 
+
+
+    model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  +\
+                     C(geo_cluster) + C(full_baths) + C(year_built) + C(beds)", data=df).fit()
+
+    print(model.pvalues)
+
+    print("FAGGGGGGGGGG")
+    print(str(model.summary()))
+ 
 
 
 
