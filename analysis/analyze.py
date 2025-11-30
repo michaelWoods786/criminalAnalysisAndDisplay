@@ -36,10 +36,6 @@ def getGeoCluster(conn):
 def recordStats(filename, model):
 
     pvals = model.pvalues
-    print("THIS SI THE FILENAME WE ARE WORKING WITH" + str(filename))  
-    
-    print("*^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*")
-
     with open(filename, "w") as file:
         for param in pvals.index:
             if "log_price" in param or "log_density" in param:
@@ -51,9 +47,7 @@ def recordStats(filename, model):
         print("THIS IS THE FILE SUMMARAY I AM LOOKING FOR" + str(summary_str))
 
         for line in summary_str.split('\n'):
-            print("THSI SI THE LINE:" + str(line))
-            file.write(line + "\n")
-    print("/^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^/")
+                        file.write(line + "\n")
     file.close()
 
 
@@ -121,35 +115,17 @@ def normalizeNumCrim():
     data=df
     ).fit()
 
-    print("THESE ARE THE PVALS")
-    print(model.pvalues)
-
-    print("^^^^^^^^^^^^^^^^")
-    print(str(model.summary()))
-    
+  
     model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  + C(geo_cluster)", data=df).fit()
 
-    print("THESE ARE THE PVALS2222222222222222----")
-    print(model.pvalues)
-
-    print("^^^^^^^^^^^^^^^^")
-    print(str(model.summary()))
+   
     
-    
-    print("THIS IS FOR RELATING PRICE TO BAATHS AND SUC")
-
-
-
+    recordStats("numCrimShallow.txt", model)
 
     model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  +\
                      C(geo_cluster) + C(full_baths) + C(year_built) + C(beds)", data=df).fit()
 
-    print(model.pvalues)
-
-    print("FAGGGGGGGGGG")
-    print(str(model.summary()))
- 
-
+    recordStats("numCriminalsRelation.txt",model)
 
 
 def anaylze(conn):
@@ -191,99 +167,10 @@ def getCoordinatesDensity(conn, dens,lowerX, upperX, lowerY, upperY):
 
     return (x[mask], y[mask])
 
-
-
-
-
-
-
-
-def getPriceNumCriminals(conn, lowerX, upperX, lowerY, upperY):
-    print("IN GET PRICE")
-
-    cursor = conn.cursor()
-    cursor.execute("SELECT list_price, numCriminal FROM criminalTab")
-    x = []
-    y=  []
- 
-
-    results = cursor.fetchall()
-    for price, numCriminal in results:
-       
-        if price and numCriminal:
-            x.append(price/100000)
-            y.append(numCriminal)
-    
-    
-    x = (np.array(x))
-    y = np.array(y)
-    #mask = (x < upperX) & (y < upperY) & (x > 1)
-    x1= x
-    y1 = y
-    
-
-    print("MINS")
-    print(min(x1))
-    print(min(y1))
-    
-    with open("file.txt", "w") as f:
-        
-        for i in range(len(x1)):
-            f.write(str(x1[i]) + "," + str(y1[i]) + "\n")
-
-
-
-
-    return (x1,y1)
-     
-def relatePriceofHouseToCrim(conn,lowerX, upperX, lowerY, upperY):
-    print("IN RELATE *+")
-    
-    cursor = conn.cursor()
-    cursor.execute("SELECT price, numCriminal FROM crimTab")
-    
-    results = cursor.fetchall()
-    plt.xlabel("PRICE(in 100000)")
-    plt.ylabel("Number of Criminals")
-    
-
-    print("THIS IS LOWERSX")
-    print(lowerX)
-    print(upperX)
-    print(lowerY)
-    print(upperY)
-
-
-
-    x,y =  getPriceNumCriminals(conn,lowerX, upperX, lowerY, upperY)
-    print(x.size) 
-    x = x[int(x.size/2): x.size]
-    y = y[int(y.size/2): y.size]
-    print(max(x))
-    print(max(y))
-
-
-    print("THIS IS X:" + str(x))
-    print("THSI SIS Y:" + str(y))
-    
-    smooth = lowess(y, x, frac=0.25)
-    print("PERCENT")
-    percents = (np.percentile(x, [0, 25, 50, 75, 90, 95, 99]))
-
-    #HERE, WE ARE SCATTERING THE COORDINATES. WITH SCATTERIGN THE COORDINAATES<
-    #WER are able to see the relationship
-
-
-    plt.scatter(x, y)
-    plt.savefig("Scattered.png")
-
- 
-    
+   
 #this method maps the coordinates, with a popup "Balt"
 def mapCoordinates(long, lat,numCriminal,m):
     folium.Marker([long, lat], popup="Balt").add_to(m)
-
-
 
 #this method willl map the criminal, and list the lognitude and lattiude of
 #address along with the number of criminals nearby
