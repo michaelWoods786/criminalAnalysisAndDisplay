@@ -8,8 +8,13 @@ The main table in which we are perroming this anaylsisi the the FinalCATable in 
 which represents a list of addresses in california with the number of criminals nearby scraped using the crimeometer api
 
 
-For the final results, please look at the txt file. Overall ,we can conclude that density and city are a signficant factor for crime,
+For the final results, please look at the numCrimalRelation.txt file. Overall ,we can conclude that density and city are a signficant factor for crime,
 even moreso than price. In selecting a house that would be deemed safe, we consider a neighborhood as lower in density as safer, with a larger price yielding
-safer results.
+safer results. Overall, the R2 score is about 60%, so there is an obvious relationship between price and the number of criminals nearby controlled for factors 
+such as number of bedrooms, number of bathrooms, density and city.
+
+
+
+
 
 
