@@ -1,5 +1,6 @@
 import sqlite3
 import pandas as pd
+import matplotlib.pyplot as plt
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 from sklearn.preprocessing import StandardScaler
@@ -34,12 +35,11 @@ def getGeoCluster(conn):
 #the houses in cluster 3
 
 def recordStats(filename, model):
-
+    print("THS IS ITHE FILENAME " + str(filename))
     pvals = model.pvalues
     with open(filename, "w") as file:
         for param in pvals.index:
-            if "log_price" in param or "log_density" in param:
-                file.write(str(param)  + ":" +  str(pvals[param]))
+            file.write(str(param)  + ":" +  str(pvals[param]))
 
        
         summary_str = str(model.summary())
@@ -59,19 +59,36 @@ def normalizeNumCrim():
     cursor = conn.cursor()
     cursor.execute("select name from sqlite_master where type='table';")
     print(cursor.fetchall())
-    df = pd.read_sql_query("select * from CAFINALTABLE", conn)
+    df = pd.read_sql_query("select * from CACRIMEANAL", conn)
     print(df.columns)
     df = df.dropna(subset=["latitude","longitude"])
-  
     
+    df["Density"] = df["population"].astype(float) / df["area"].astype(float)
+    
+    print(df["population"])
+
+    print(df["Density"]) 
     #df_filtered = df[df["price"] < np.percentile(df["price"], 99)]
     print("*************") 
     print(np.percentile(df["sold_price"], 99))
     print("++++++++++++")
+    
+    df = df.dropna(subset=['latitude', 'longitude', 'sold_price' , 'Density', 'numCriminal'])
+    coords = df[['latitude', 'longitude', 'sold_price', 'Density', 'numCriminal']]
+    
 
-    coords = df[["latitude","longitude"]]
+    print(coords)
+
+
     coords_scaled = StandardScaler().fit_transform(coords)
-    kmeans = KMeans(n_clusters=15, random_state=42)
+    
+    #inertias = []
+    
+    #print(coords_scaled)    
+
+    kmeans = KMeans(n_clusters=4, random_state=42)
+    
+#    print(inertias)
     df["geo_cluster"] = kmeans.fit_predict(coords_scaled)
     df["crimePerDensity"] = df["numCriminal"] / df["Density"]
 
@@ -116,14 +133,15 @@ def normalizeNumCrim():
     ).fit()
 
   
-    model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  + C(geo_cluster)", data=df).fit()
+    model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  +\
+                    C(geo_cluster)", data=df).fit()
 
    
     
     recordStats("numCrimShallow.txt", model)
 
-    model = smf.ols("numCriminal ~ log_price + log_density + educationLevel  +\
-                     C(geo_cluster) + C(full_baths) + C(year_built) + C(beds)", data=df).fit()
+    model = smf.ols("numCriminal ~ log_price +  educationLevel +\
+ + sqft  + C(geo_cluster)", data=df).fit()
 
     recordStats("numCriminalsRelation.txt",model)
 
