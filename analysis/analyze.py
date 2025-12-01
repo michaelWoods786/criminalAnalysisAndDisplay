@@ -51,64 +51,153 @@ def recordStats(filename, model):
     file.close()
 
 
+def normalizeNumCrim2():
+
+    print("-----------------------------------")
+
+    conn = sqlite3.connect("../HC.db")
+    cursor = conn.cursor()
+
+# Load data
+    df = pd.read_sql_query("SELECT * FROM CACRIMEANAL2", conn)
+
+# Optional: povertyClass if you need it elsewhere (not used in models below)
+    df['povertyClass'] = pd.qcut(
+        df['povertyLevel'].astype(float),
+        q=4,
+        labels=["LOW", "MEDIUM", "HIGH", "VERY_HIGH"]
+    )
+
+# Basic cleaning: make sure core fields exist and are usable
+    df = df.dropna(subset=["latitude", "longitude", "population", "area",
+                           "sold_price", "numCriminal"])
+
+# Density (people per unit area)
+    df["Density"] = df["population"].astype(float) / df["tract_area"].astype(float)
+
+# Need density non-null and positive
+    df = df.dropna(subset=["Density"])
+    df = df[df["Density"] > 0]
+
+# Keep only rows with required predictors; convert to float
+    needed_cols = ["sqft", "renterPercent", "age_percentage"]
+    for col in needed_cols:
+        df = df.dropna(subset=[col])
+        df[col] = df[col].astype(float)
+
+# KMeans clustering on spatial + price + density structure
+    coords = df[["latitude", "longitude", "sold_price", "Density"]]
+    coords_scaled = StandardScaler().fit_transform(coords)
+
+    kmeans = KMeans(n_clusters=7, random_state=42)
+    df["geo_cluster"] = kmeans.fit_predict(coords_scaled)
+
+# Crime per density
+    df["crimePerDensity"] = df["numCriminal"] / df["Density"]
+
+# Log transforms
+    df["log_price"] = np.log(df["sold_price"])
+    df["log_density"] = np.log1p(df["Density"])          # safer for small values
+    df["log_crime"] = np.log1p(df["crimePerDensity"])
+
+# ------------------------
+# Model 1: crime per density ~ price + density + cluster
+# ------------------------
+    model1 = smf.ols(
+        "crimePerDensity ~ log_price + log_density + C(geo_cluster)",
+        data=df
+    ).fit()
+    recordStats("crimePerDensity.txt", model1)
+
+# ------------------------
+# Model 2: numCriminal ~ log_price + log_density + cluster
+# ------------------------
+    model2 = smf.ols(
+        "numCriminal ~ log_price + log_density + C(geo_cluster)",
+        data=df
+    ).fit()
+    recordStats("numCrimShallow.txt", model2)
+
+# ------------------------
+# Model 3: main “deep” model with standardized predictors
+# ------------------------
+
+# povertyLevel as numeric
+    df["asIntPov"] = df["povertyLevel"].astype(float)
+
+# Standardize key numeric predictors
+    for col in ["log_price", "log_density", "sqft", "renterPercent",
+                "age_percentage", "asIntPov"]:
+        df[f"z_{col}"] = (df[col] - df[col].mean()) / df[col].std()
+
+# Deep model:
+# numCriminal ~ density + renters + poverty + age share + price + size
+    model3 = smf.ols(
+        "numCriminal ~ z_log_density + z_renterPercent + z_asIntPov "
+        "+ z_age_percentage + z_log_price + z_sqft",
+        data=df
+    ).fit()
+
+    
+    X = df[[
+        "z_log_density",
+        "z_log_price",
+        "z_renterPercent",
+        "z_asIntPov",
+        "z_age_percentage"
+    ]].values
+
+    km = KMeans(n_clusters=6, random_state=42).fit(X)
+    df["geo_cluster"] = km.labels_
 
 
+    model3 = smf.ols(
+        "numCriminal ~ z_log_density + z_renterPercent + z_asIntPov "
+        "+ z_age_percentage + z_log_price + z_sqft + C(geo_cluster)",
+        data=df
+    ).fit()
+
+
+    recordStats("numCriminalsRelation.txt", model3)
+
+    conn.close()
 def normalizeNumCrim():
-    print("ENTERED")
+    
+    print("-----------------------------------")
+
     conn = sqlite3.connect("../HC.db")
     cursor = conn.cursor()
     cursor.execute("select name from sqlite_master where type='table';")
-    print(cursor.fetchall())
     df = pd.read_sql_query("select * from CACRIMEANAL", conn)
-    print(df.columns)
+   
+    df['povertyClass'] = pd.qcut(df['povertyLevel'].astype('float'), q=4, labels=["LOW", "MEDIUM", "HIGH", "VERY_HIGH"])
+
+   
     df = df.dropna(subset=["latitude","longitude"])
-    
-    df["Density"] = df["population"].astype(float) / df["area"].astype(float)
-    
-    print(df["population"])
-
-    print(df["Density"]) 
-    #df_filtered = df[df["price"] < np.percentile(df["price"], 99)]
-    print("*************") 
-    print(np.percentile(df["sold_price"], 99))
-    print("++++++++++++")
-    
+    df["Density"] = df["population"].astype(float) / df["area"].astype(float)   
     df = df.dropna(subset=['latitude', 'longitude', 'sold_price' , 'Density', 'numCriminal'])
-    coords = df[['latitude', 'longitude', 'sold_price', 'Density', 'numCriminal']]
+    coords = df[['latitude', 'longitude', 'sold_price', 'Density']]
     
 
-    print(coords)
-
-
+ 
     coords_scaled = StandardScaler().fit_transform(coords)
     
     #inertias = []
     
     #print(coords_scaled)    
 
-    kmeans = KMeans(n_clusters=4, random_state=42)
+    kmeans = KMeans(n_clusters=7, random_state=42)
     
 #    print(inertias)
     df["geo_cluster"] = kmeans.fit_predict(coords_scaled)
     df["crimePerDensity"] = df["numCriminal"] / df["Density"]
-
-
 
     model = smf.ols(
     "crimePerDensity ~ np.log(sold_price) * np.log( Density) +  C(geo_cluster)",
     data=df
     ).fit()
     
-
     recordStats("crimePerDensity.txt", model)
-
-   
-    df.to_sql(
-    name="CATABLECluster",
-    con=conn,
-    if_exists="replace",   # or "append"
-    index=False            # don’t write DataFrame index as a column
-    )
 
     df["log_price"] = np.log(df["sold_price"])
     df["log_density"] = np.log1p(df["Density"])
@@ -139,9 +228,12 @@ def normalizeNumCrim():
    
     
     recordStats("numCrimShallow.txt", model)
-
+    
+    df['povertyLevel'] = df['povertyLevel'].astype(float)
     model = smf.ols("numCriminal ~ log_price +  educationLevel +\
- + sqft  + C(geo_cluster)", data=df).fit()
+            + sqft  + C(geo_cluster) + Density + povertyLevel + \
+                    renterPercent + age_percentage + income", data=df).fit()
+
 
     recordStats("numCriminalsRelation.txt",model)
 
@@ -220,7 +312,7 @@ def mapCriminal(conn):
 
  
 
-normalizeNumCrim()
+normalizeNumCrim2()
 
 
 
