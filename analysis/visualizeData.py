@@ -1,4 +1,5 @@
-import statsmodels.api as sm
+
+import statsmodels.formula.api as smf
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -10,32 +11,56 @@ def getNames(df):
         print(column)
 
 
-
-def getViolin(df, x1, y1, filename, controlFactors):    
+   
+def getViolin(df, x1, y1, filename, controlFactors):
+    print("THIS IS x1:", x1)
+    print("THIS IS y1:", y1)
+    print("CONTROL FACTORS:", controlFactors)
     
 
-    print("THSI SI x1: " + str(x1))
-    print("THIS SI Y1:" + str(y1))
 
-    if len(controlFactors) == 0:
-        plt.figure(figsize=(18, 20))      # create big canvas
+ 
+
+    plt.figure(figsize=(18, 20))
+
+    if not controlFactors:
+        # Plain violin
         sns.violinplot(
-        data=df,
-        x=x1,  # e.g., 'low', 'medium', 'high'
-        y=y1,
-        cut=0
+            data=df,
+            x=x1,
+            y=y1,
+            cut=0
         )
         plt.xticks(rotation=45, ha="right")
-        plt.savefig(filename)
+
 
     else:
-        
-        X = df[controlFactors]
-        y = df["crimePerCapita"]
-        formula = "z_log_price ~ " + " + ".join(controlFactors)
-        model = sm.OLS.from_formula(formula, data=df).fit()
-        print(model.summary())
-        plt.savefig(filename)
+        # Regress)
 
-    print("EXITED")       
+        model = smf.ols("z_log_price ~ C(educationLevelClass) + " +
+                        "z_log_density + z_renterPercent + z_asIntPov + " +
+                        "z_age_percentage + z_sqft + C(geo_cluster)", data=df).fit()
+
+        print(model.summary())
+
+        print(df['educationLevelClass'].unique())
+        df["adj_price"] = model.predict(df)
+        df.groupby('educationLevelClass')['adj_price'].mean()
+        sns.violinplot(
+            data=df,
+            x="educationLevelClass",
+            y="adj_price",
+            order=["Low", "Moderate", "High", "Very High"]
+        )
+        plt.xticks(rotation=45)
+        plt.savefig("Controlled.png")
+        print(df[['educationLevelClass', 'educationLevel']].sample(20))
+        df['educationLevelClass'].value_counts()
+        print(df['educationLevel'].describe()) 
+
+
+
+
+
+
 
