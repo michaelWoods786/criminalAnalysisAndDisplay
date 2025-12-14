@@ -12,7 +12,7 @@ def getNames(df):
 
 
    
-def getViolin(df, x1, y1, filename, controlFactors):
+def getViolin(df, x1, y1, filename,filename2, controlFactors):
     print("THIS IS x1:", x1)
     print("THIS IS y1:", y1)
     print("CONTROL FACTORS:", controlFactors)
@@ -37,13 +37,19 @@ def getViolin(df, x1, y1, filename, controlFactors):
     else:
         # Regress)
 
-        model = smf.ols("z_log_price ~ C(educationLevelClass) + " +
+        model = smf.ols(f"z_log_price ~ C({x1}) + " +
                         "z_log_density + z_renterPercent + z_asIntPov + " +
                         "z_age_percentage + z_sqft + C(geo_cluster)", data=df).fit()
 
         print(model.summary())
+            
 
-        print(df['educationLevelClass'].unique())
+
+        
+        with open(filename2, "w") as f:
+            f.write(str(model.summary()))
+            f.close()
+
         df["adj_price"] = model.predict(df)
         df.groupby('educationLevelClass')['adj_price'].mean()
         sns.violinplot(

@@ -7,11 +7,10 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 import numpy as np
 
-
+NAME = "CAHouseCriminalsPerCap"
 def exp_decay(x, a, b):
 
    return a * np.exp(-b * x)
-
 
 
 def getGeoCluster(conn):
@@ -26,13 +25,32 @@ def getGeoCluster(conn):
     ).fit()
     print(model.params)
 
+def toDatabase(df,namey):
+    conn = sqlite3.connect("../HC.db")
+
+    df.to_sql(
+    name= namey,   # choose table name
+    con=conn,
+    if_exists="replace",    # or "append" if you don't want to overwrite
+    index=False
+    )
+
+    conn.close()
+
+def getPerCapita(df):
+    
+
+    cities = df["city"].unique()
+    
+    for city in cities:
+        
+        mask = (df["city"] == city )
+ #print(df.loc[mask,"numCriminal"].astype(float)) 
+        df.loc[mask, "crimePerCapita"] = df.loc[mask,"numCriminal"].astype(float) / df.loc[mask, "population"].astype(float)
+    
+    return df
 
 
-
-
-
-#compare the average price  of the houes in cluster 1,  to the average price of
-#the houses in cluster 3
 
 def recordStats(filename, model):
     print("THS IS ITHE FILENAME " + str(filename))
@@ -59,7 +77,7 @@ def normalizeNumCrim2():
     cursor = conn.cursor()
 
 # Load data
-    df = pd.read_sql_query("SELECT * FROM CACRIMEANAL2", conn)
+    df = pd.read_sql_query(f"SELECT * FROM {NAME}", conn)
 
 # Optional: povertyClass if you need it elsewhere (not used in models below)
     df['povertyClass'] = pd.qcut(
@@ -100,7 +118,8 @@ def normalizeNumCrim2():
     df["log_density"] = np.log1p(df["Density"])          # safer for small values
     df["log_crime"] = np.log1p(df["crimePerDensity"])
 
-# ------------------------
+
+ # ------------------------
 # Model 1: crime per density ~ price + density + cluster
 # ------------------------
     model1 = smf.ols(
@@ -141,7 +160,6 @@ def normalizeNumCrim2():
     
     X = df[[
         "z_log_density",
-        "z_log_price",
         "z_renterPercent",
         "z_asIntPov",
         "z_age_percentage"
@@ -152,15 +170,17 @@ def normalizeNumCrim2():
 
 
     model3 = smf.ols(
-        "numCriminal ~ z_log_density + z_renterPercent + z_asIntPov "
-        "+ z_age_percentage + z_log_price + z_sqft + C(geo_cluster)",
+        "numCriminal ~  z_log_price + C(geo_cluster)",
         data=df
     ).fit()
 
 
     recordStats("numCriminalsRelation.txt", model3)
-
+    
+    print("THIS SI THE DF")
+    print(df.columns)
     conn.close()
+    return df
 def normalizeNumCrim():
     
     print("-----------------------------------")
@@ -237,7 +257,7 @@ def normalizeNumCrim():
 
     recordStats("numCriminalsRelation.txt",model)
 
-
+    return df
 def anaylze(conn):
     densities = [1,25,50,75,100]
     for dens in densities:
@@ -309,11 +329,11 @@ def mapCriminal(conn):
 
     m.save("map.html")
 
-
  
-
-normalizeNumCrim2()
-
+df =  normalizeNumCrim2()
+print("DONE NORMALIZING")
+df = getPerCapita(df)
+toDatabase(df, "CAHouseCriminalsPerCap")
 
 
 
